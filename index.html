@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Viaje a MTY PAA</title>
+    <title>MTY TRIP</title>
     <style>
         body {
             min-height: 100vh;
@@ -48,6 +48,95 @@
         #countdown:empty {
             display: none;
         }
+        /* Suggestion box styles */
+        #suggestion-section {
+            margin: 40px auto 0 auto;
+            max-width: 420px;
+            background: rgba(255,255,255,0.65);
+            border-radius: 18px;
+            box-shadow: 0 4px 18px 0 rgba(31, 38, 135, 0.10);
+            padding: 28px 18px 24px 18px;
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            border: 1px solid rgba(174,231,247,0.3);
+        }
+        #suggestion-section h2 {
+            color: #1a4d6e;
+            margin-bottom: 12px;
+            font-size: 1.2em;
+        }
+        #suggestion-form {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 18px;
+        }
+        #suggestion-input {
+            flex: 1;
+            padding: 8px 12px;
+            border-radius: 8px;
+            border: 1px solid #b8eaff;
+            font-size: 1em;
+        }
+        #suggestion-form button {
+            background: linear-gradient(120deg, #b8eaff 60%, #c1ffd7 100%);
+            border: none;
+            border-radius: 8px;
+            padding: 8px 16px;
+            font-size: 1em;
+            color: #1a4d6e;
+            cursor: pointer;
+            font-weight: 600;
+            box-shadow: 0 2px 6px 0 rgba(31, 38, 135, 0.10);
+            transition: background 0.2s;
+        }
+        #suggestion-form button:hover {
+            background: linear-gradient(120deg, #aee7f7 60%, #b8eaff 100%);
+        }
+        #suggestion-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .suggestion-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(255,255,255,0.85);
+            border-radius: 10px;
+            margin-bottom: 10px;
+            padding: 10px 12px;
+            box-shadow: 0 1px 4px 0 rgba(31, 38, 135, 0.06);
+        }
+        .suggestion-text {
+            flex: 1;
+            text-align: left;
+            color: #1a4d6e;
+        }
+        .vote-controls {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-left: 12px;
+        }
+        .vote-btn {
+            background: none;
+            border: none;
+            font-size: 1.2em;
+            cursor: pointer;
+            color: #1a4d6e;
+            padding: 2px 6px;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+        .vote-btn:hover {
+            background: #e0f7fa;
+        }
+        .vote-count {
+            min-width: 24px;
+            text-align: center;
+            font-weight: 600;
+            color: #1a4d6e;
+        }
         @media (max-width: 600px) {
             #countdown {
                 font-size: 1.2em;
@@ -57,12 +146,25 @@
                 font-size: 1.2em;
                 margin-top: 30px;
             }
+            #suggestion-section {
+                padding: 14px 4px 12px 4px;
+            }
         }
     </style>
 </head>
 <body>
-    <h1>Countdown to December 23, 2025 (CST)</h1>
+    <h1>Mty Winter tour 2025</h1>
     <div id="countdown"></div>
+
+    <div id="suggestion-section">
+        <h2>💡 Suggestion Box</h2>
+        <form id="suggestion-form" autocomplete="off">
+            <input id="suggestion-input" type="text" maxlength="120" placeholder="Share your idea..." required />
+            <button type="submit">Add</button>
+        </form>
+        <ul id="suggestion-list"></ul>
+    </div>
+
     <script>
         // Target date in CST (UTC-6)
         function getTargetDateCST() {
@@ -97,6 +199,150 @@
 
         updateCountdown();
         setInterval(updateCountdown, 1000);
+
+        // --- Suggestion Box Logic (Backend API) ---
+        const API_URL = 'http://localhost:3001';
+
+        // Generate a unique voter id for this browser (persisted)
+        function getVoterId() {
+            let id = localStorage.getItem('mty_voter_id');
+            if (!id) {
+                id = 'voter_' + Math.random().toString(36).slice(2) + Date.now();
+                localStorage.setItem('mty_voter_id', id);
+            }
+            return id;
+        }
+
+        async function fetchSuggestions() {
+            const res = await fetch(`${API_URL}/suggestions`);
+            if (!res.ok) throw new Error('Failed to fetch suggestions');
+            return await res.json();
+        }
+
+        async function addSuggestion(text) {
+            const res = await fetch(`${API_URL}/suggestions`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text })
+            });
+            if (!res.ok) throw new Error('Failed to add suggestion');
+            return await res.json();
+        }
+
+        async function sendVote(suggestion_id, vote) {
+            const voter = getVoterId();
+            const res = await fetch(`${API_URL}/vote`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ suggestion_id, vote, voter })
+            });
+            if (!res.ok) throw new Error('Failed to vote');
+            return await res.json();
+        }
+
+        // Track votes in session to prevent multiple votes per suggestion per session
+        function hasVotedSession(id) {
+            return sessionStorage.getItem('voted_' + id);
+        }
+        function setVotedSession(id) {
+            sessionStorage.setItem('voted_' + id, '1');
+        }
+
+        async function renderSuggestions() {
+            const list = document.getElementById('suggestion-list');
+            list.innerHTML = '<li>Loading...</li>';
+            let suggestions = [];
+            try {
+                suggestions = await fetchSuggestions();
+            } catch (e) {
+                list.innerHTML = '<li style="color:red">Failed to load suggestions</li>';
+                return;
+            }
+            list.innerHTML = '';
+            for (const s of suggestions) {
+                const li = document.createElement('li');
+                li.className = 'suggestion-item';
+                const text = document.createElement('span');
+                text.className = 'suggestion-text';
+                text.textContent = s.text;
+                li.appendChild(text);
+
+                const controls = document.createElement('span');
+                controls.className = 'vote-controls';
+
+                const upBtn = document.createElement('button');
+                upBtn.className = 'vote-btn';
+                upBtn.innerHTML = '▲';
+                upBtn.title = 'Upvote';
+                upBtn.onclick = async () => {
+                    if (hasVotedSession(s.id)) {
+                        alert('You have already voted on this suggestion in this session.');
+                        return;
+                    }
+                    try {
+                        await sendVote(s.id, 1);
+                        setVotedSession(s.id);
+                        renderSuggestions();
+                    } catch (e) {
+                        alert('Failed to vote.');
+                    }
+                };
+
+                const count = document.createElement('span');
+                count.className = 'vote-count';
+                count.textContent = s.votes || 0;
+
+                const downBtn = document.createElement('button');
+                downBtn.className = 'vote-btn';
+                downBtn.innerHTML = '▼';
+                downBtn.title = 'Downvote';
+                downBtn.onclick = async () => {
+                    if (hasVotedSession(s.id)) {
+                        alert('You have already voted on this suggestion in this session.');
+                        return;
+                    }
+                    try {
+                        await sendVote(s.id, -1);
+                        setVotedSession(s.id);
+                        renderSuggestions();
+                    } catch (e) {
+                        alert('Failed to vote.');
+                    }
+                };
+
+                controls.appendChild(upBtn);
+                controls.appendChild(count);
+                controls.appendChild(downBtn);
+                li.appendChild(controls);
+                list.appendChild(li);
+            }
+        }
+
+        document.getElementById('suggestion-form').onsubmit = async function(e) {
+            e.preventDefault();
+            const input = document.getElementById('suggestion-input');
+            const text = input.value.trim();
+            if (!text) return;
+            // Prevent duplicate suggestions (case-insensitive) by checking current list
+            let suggestions = [];
+            try {
+                suggestions = await fetchSuggestions();
+            } catch {}
+            if (suggestions.some(s => s.text.toLowerCase() === text.toLowerCase())) {
+                alert('This suggestion already exists.');
+                return;
+            }
+            try {
+                await addSuggestion(text);
+                input.value = '';
+                renderSuggestions();
+            } catch (e) {
+                alert('Failed to add suggestion.');
+            }
+        };
+
+        // Initial render
+        renderSuggestions();
     </script>
 </body>
 </html>
