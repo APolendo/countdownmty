@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Countdown to December 23, 2025 (CST)</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
+        #countdown { font-size: 2em; }
+    </style>
+</head>
+<body>
+    <h1>Countdown to December 23, 2025 (CST)</h1>
+    <div id="countdown"></div>
+    <script>
+        // Target date in CST (UTC-6)
+        function getTargetDateCST() {
+            // December 23, 2025 00:00:00 CST (UTC-6)
+            // Create date in UTC then subtract 6 hours for CST
+            const targetUTC = new Date(Date.UTC(2025, 11, 23, 6, 0, 0)); // 11=December (0-based)
+            return targetUTC;
+        }
+
+        function updateCountdown() {
+            const now = new Date();
+            // Convert current time to UTC then to CST
+            const nowUTC = new Date(now.getTime() + now.getTimezoneOffset() * 60000);
+            const nowCST = new Date(nowUTC.getTime() - 6 * 60 * 60000);
+
+            const target = getTargetDateCST();
+            const diff = target - nowCST;
+
+            if (diff <= 0) {
+                document.getElementById('countdown').textContent = "The date has arrived!";
+                return;
+            }
+
+            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
+            const minutes = Math.floor((diff / (1000 * 60)) % 60);
+            const seconds = Math.floor((diff / 1000) % 60);
+
+            document.getElementById('countdown').textContent =
+                `${days} days, ${hours} hours, ${minutes} minutes, ${seconds} seconds`;
+        }
+
+        updateCountdown();
+        setInterval(updateCountdown, 1000);
+    </script>
+</body>
+</html>
