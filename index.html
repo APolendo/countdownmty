@@ -201,148 +201,97 @@
         setInterval(updateCountdown, 1000);
 
         // --- Suggestion Box Logic (Backend API) ---
-        const API_URL = 'https://68d4ac2c3639361999377c3f--zippy-valkyrie-77d50b.netlify.app/';
+        const API_URL = 'https://script.google.com/macros/s/AKfycbzD5IGB9xGLBKYCW-oM1B3OQo0Ehxlk-EBC-Zs0D3nT4J8X-67hBhTwnKArESeFcN66/exec';
 
         // Generate a unique voter id for this browser (persisted)
-        function getVoterId() {
-            let id = localStorage.getItem('mty_voter_id');
-            if (!id) {
-                id = 'voter_' + Math.random().toString(36).slice(2) + Date.now();
-                localStorage.setItem('mty_voter_id', id);
-            }
-            return id;
-        }
+        const listEl = document.getElementById('list');
+function setHint(msg, isErr=false){
+hintEl.textContent = msg || '';
+hintEl.className = 'pill ' + (isErr ? 'warn' : 'ok');
+}
 
-        async function fetchSuggestions() {
-            const res = await fetch(`${API_URL}/suggestions`);
-            if (!res.ok) throw new Error('Failed to fetch suggestions');
-            return await res.json();
-        }
 
-        async function addSuggestion(text) {
-            const res = await fetch(`${API_URL}/suggestions`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ text })
-            });
-            if (!res.ok) throw new Error('Failed to add suggestion');
-            return await res.json();
-        }
+async function api(method, body){
+const opts = method === 'GET' ? {} : { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)};
+const url = method === 'GET' ? `${API_URL}?action=list` : API_URL;
+const res = await fetch(url, opts);
+const json = await res.json();
+if (!json.ok) throw new Error(json.error || 'API error');
+return json.data;
+}
 
-        async function sendVote(suggestion_id, vote) {
-            const voter = getVoterId();
-            const res = await fetch(`${API_URL}/vote`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ suggestion_id, vote, voter })
-            });
-            if (!res.ok) throw new Error('Failed to vote');
-            return await res.json();
-        }
 
-        // Track votes in session to prevent multiple votes per suggestion per session
-        function hasVotedSession(id) {
-            return sessionStorage.getItem('voted_' + id);
-        }
-        function setVotedSession(id) {
-            sessionStorage.setItem('voted_' + id, '1');
-        }
+async function load(){
+try {
+const tasks = await api('GET');
+render(tasks);
+setHint(`Cargadas ${tasks.length} tareas`);
+} catch(err){ setHint(err.message, true); }
+}
 
-        async function renderSuggestions() {
-            const list = document.getElementById('suggestion-list');
-            list.innerHTML = '<li>Loading...</li>';
-            let suggestions = [];
-            try {
-                suggestions = await fetchSuggestions();
-            } catch (e) {
-                list.innerHTML = '<li style="color:red">Failed to load suggestions</li>';
-                return;
-            }
-            list.innerHTML = '';
-            for (const s of suggestions) {
-                const li = document.createElement('li');
-                li.className = 'suggestion-item';
-                const text = document.createElement('span');
-                text.className = 'suggestion-text';
-                text.textContent = s.text;
-                li.appendChild(text);
 
-                const controls = document.createElement('span');
-                controls.className = 'vote-controls';
+function render(tasks){
+listEl.innerHTML = '';
+tasks.forEach(t => listEl.appendChild(renderItem(t)));
+}
 
-                const upBtn = document.createElement('button');
-                upBtn.className = 'vote-btn';
-                upBtn.innerHTML = '▲';
-                upBtn.title = 'Upvote';
-                upBtn.onclick = async () => {
-                    if (hasVotedSession(s.id)) {
-                        alert('You have already voted on this suggestion in this session.');
-                        return;
-                    }
-                    try {
-                        await sendVote(s.id, 1);
-                        setVotedSession(s.id);
-                        renderSuggestions();
-                    } catch (e) {
-                        alert('Failed to vote.');
-                    }
-                };
 
-                const count = document.createElement('span');
-                count.className = 'vote-count';
-                count.textContent = s.votes || 0;
+function renderItem(t){
+const li = document.createElement('li');
+const cb = document.createElement('input'); cb.type='checkbox'; cb.checked = !!t.done;
+const title = document.createElement('input'); title.type='text'; title.value = t.title; title.className='title'+(t.done?' done':'');
+const saveBtn = document.createElement('button'); saveBtn.textContent = 'Guardar';
+const delBtn = document.createElement('button'); delBtn.textContent = 'Eliminar'; delBtn.className='ghost warn';
 
-                const downBtn = document.createElement('button');
-                downBtn.className = 'vote-btn';
-                downBtn.innerHTML = '▼';
-                downBtn.title = 'Downvote';
-                downBtn.onclick = async () => {
-                    if (hasVotedSession(s.id)) {
-                        alert('You have already voted on this suggestion in this session.');
-                        return;
-                    }
-                    try {
-                        await sendVote(s.id, -1);
-                        setVotedSession(s.id);
-                        renderSuggestions();
-                    } catch (e) {
-                        alert('Failed to vote.');
-                    }
-                };
 
-                controls.appendChild(upBtn);
-                controls.appendChild(count);
-                controls.appendChild(downBtn);
-                li.appendChild(controls);
-                list.appendChild(li);
-            }
-        }
+cb.addEventListener('change', async ()=>{
+try { await api('POST', { action:'update', id:t.id, done: cb.checked }); title.classList.toggle('done', cb.checked); setHint('Actualizado'); }
+catch(err){ setHint(err.message, true); cb.checked = !cb.checked; }
+});
 
-        document.getElementById('suggestion-form').onsubmit = async function(e) {
-            e.preventDefault();
-            const input = document.getElementById('suggestion-input');
-            const text = input.value.trim();
-            if (!text) return;
-            // Prevent duplicate suggestions (case-insensitive) by checking current list
-            let suggestions = [];
-            try {
-                suggestions = await fetchSuggestions();
-            } catch {}
-            if (suggestions.some(s => s.text.toLowerCase() === text.toLowerCase())) {
-                alert('This suggestion already exists.');
-                return;
-            }
-            try {
-                await addSuggestion(text);
-                input.value = '';
-                renderSuggestions();
-            } catch (e) {
-                alert('Failed to add suggestion.');
-            }
-        };
 
-        // Initial render
-        renderSuggestions();
+title.addEventListener('keydown', async (e)=>{
+if(e.key==='Enter'){
+try { await api('POST', { action:'update', id:t.id, title: title.value.trim() }); setHint('Título guardado'); }
+catch(err){ setHint(err.message, true); }
+}
+});
+
+
+saveBtn.addEventListener('click', async ()=>{
+try { await api('POST', { action:'update', id:t.id, title: title.value.trim(), done: cb.checked }); setHint('Guardado'); }
+catch(err){ setHint(err.message, true); }
+});
+
+
+delBtn.addEventListener('click', async ()=>{
+if(!confirm('¿Eliminar este pendiente?')) return;
+try { await api('POST', { action:'delete', id:t.id }); li.remove(); setHint('Eliminado'); }
+catch(err){ setHint(err.message, true); }
+});
+
+
+li.append(cb, title, saveBtn, delBtn);
+return li;
+}
+
+
+addBtn.addEventListener('click', async ()=>{
+const title = inputEl.value.trim();
+if(!title) return;
+try {
+const task = await api('POST', { action:'add', title });
+listEl.prepend(renderItem(task));
+inputEl.value='';
+setHint('Agregado');
+} catch(err){ setHint(err.message, true); }
+});
+
+
+inputEl.addEventListener('keydown', (e)=>{ if(e.key==='Enter') addBtn.click(); });
+
+
+load();
     </script>
 </body>
 </html>
