@@ -310,3 +310,15 @@ renderSuggestions();
     </script>
 </body>
 </html>
+
+
+<!-- function doGet(e) {
+  var sheet = SpreadsheetApp.openById('YOUR_SHEET_ID').getSheetByName('TasksDB');
+  var suggestion = e.parameter.suggestion;
+  if (suggestion) {
+    sheet.appendRow([suggestion]);
+    return ContentService.createTextOutput("OK");
+  } else {
+    return ContentService.createTextOutput("No suggestion provided");
+  }
+} -->
