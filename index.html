@@ -200,98 +200,112 @@
         updateCountdown();
         setInterval(updateCountdown, 1000);
 
-        // --- Suggestion Box Logic (Backend API) ---
-        const API_URL = 'https://script.google.com/macros/s/AKfycbzD5IGB9xGLBKYCW-oM1B3OQo0Ehxlk-EBC-Zs0D3nT4J8X-67hBhTwnKArESeFcN66/exec';
+// --- Suggestion Box Logic (Frontend Only) ---
+// This is a simple frontend-only implementation for suggestions and voting.
+// For a real backend, replace localStorage logic with API calls.
 
-        // Generate a unique voter id for this browser (persisted)
-        const listEl = document.getElementById('list');
-function setHint(msg, isErr=false){
-hintEl.textContent = msg || '';
-hintEl.className = 'pill ' + (isErr ? 'warn' : 'ok');
+const suggestionForm = document.getElementById('suggestion-form');
+const suggestionInput = document.getElementById('suggestion-input');
+const suggestionList = document.getElementById('suggestion-list');
+
+// Use localStorage for persistence (per browser)
+function getSuggestions() {
+    return JSON.parse(localStorage.getItem('suggestions') || '[]');
+}
+function saveSuggestions(suggestions) {
+    localStorage.setItem('suggestions', JSON.stringify(suggestions));
 }
 
+// Generate a unique voter id for this browser
+function getVoterId() {
+    let id = localStorage.getItem('voterId');
+    if (!id) {
+        id = 'voter-' + Math.random().toString(36).substr(2, 9);
+        localStorage.setItem('voterId', id);
+    }
+    return id;
+}
+const voterId = getVoterId();
 
-async function api(method, body){
-const opts = method === 'GET' ? {} : { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)};
-const url = method === 'GET' ? `${API_URL}?action=list` : API_URL;
-const res = await fetch(url, opts);
-const json = await res.json();
-if (!json.ok) throw new Error(json.error || 'API error');
-return json.data;
+function renderSuggestions() {
+    suggestionList.innerHTML = '';
+    const suggestions = getSuggestions();
+    // Sort by votes descending
+    suggestions.sort((a, b) => (b.votes || 0) - (a.votes || 0));
+    suggestions.forEach(s => {
+        const li = document.createElement('li');
+        li.className = 'suggestion-item';
+
+        const text = document.createElement('span');
+        text.className = 'suggestion-text';
+        text.textContent = s.text;
+
+        const controls = document.createElement('div');
+        controls.className = 'vote-controls';
+
+        const upBtn = document.createElement('button');
+        upBtn.className = 'vote-btn';
+        upBtn.innerHTML = '⬆️';
+        upBtn.title = 'Upvote';
+
+        const downBtn = document.createElement('button');
+        downBtn.className = 'vote-btn';
+        downBtn.innerHTML = '⬇️';
+        downBtn.title = 'Downvote';
+
+        const voteCount = document.createElement('span');
+        voteCount.className = 'vote-count';
+        voteCount.textContent = s.votes || 0;
+
+        // Prevent multiple votes per suggestion per voter
+        const voted = (s.voters || []).includes(voterId);
+        upBtn.disabled = voted;
+        downBtn.disabled = voted;
+
+        upBtn.onclick = () => vote(s.id, 1);
+        downBtn.onclick = () => vote(s.id, -1);
+
+        controls.appendChild(upBtn);
+        controls.appendChild(voteCount);
+        controls.appendChild(downBtn);
+
+        li.appendChild(text);
+        li.appendChild(controls);
+
+        suggestionList.appendChild(li);
+    });
 }
 
-
-async function load(){
-try {
-const tasks = await api('GET');
-render(tasks);
-setHint(`Cargadas ${tasks.length} tareas`);
-} catch(err){ setHint(err.message, true); }
+function vote(id, delta) {
+    const suggestions = getSuggestions();
+    const idx = suggestions.findIndex(s => s.id === id);
+    if (idx !== -1) {
+        suggestions[idx].votes = (suggestions[idx].votes || 0) + delta;
+        suggestions[idx].voters = suggestions[idx].voters || [];
+        suggestions[idx].voters.push(voterId);
+        saveSuggestions(suggestions);
+        renderSuggestions();
+    }
 }
 
-
-function render(tasks){
-listEl.innerHTML = '';
-tasks.forEach(t => listEl.appendChild(renderItem(t)));
-}
-
-
-function renderItem(t){
-const li = document.createElement('li');
-const cb = document.createElement('input'); cb.type='checkbox'; cb.checked = !!t.done;
-const title = document.createElement('input'); title.type='text'; title.value = t.title; title.className='title'+(t.done?' done':'');
-const saveBtn = document.createElement('button'); saveBtn.textContent = 'Guardar';
-const delBtn = document.createElement('button'); delBtn.textContent = 'Eliminar'; delBtn.className='ghost warn';
-
-
-cb.addEventListener('change', async ()=>{
-try { await api('POST', { action:'update', id:t.id, done: cb.checked }); title.classList.toggle('done', cb.checked); setHint('Actualizado'); }
-catch(err){ setHint(err.message, true); cb.checked = !cb.checked; }
+suggestionForm.addEventListener('submit', function (e) {
+    e.preventDefault();
+    const text = suggestionInput.value.trim();
+    if (!text) return;
+    const suggestions = getSuggestions();
+    suggestions.push({
+        id: 'sugg-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5),
+        text,
+        votes: 0,
+        voters: []
+    });
+    saveSuggestions(suggestions);
+    suggestionInput.value = '';
+    renderSuggestions();
 });
 
-
-title.addEventListener('keydown', async (e)=>{
-if(e.key==='Enter'){
-try { await api('POST', { action:'update', id:t.id, title: title.value.trim() }); setHint('Título guardado'); }
-catch(err){ setHint(err.message, true); }
-}
-});
-
-
-saveBtn.addEventListener('click', async ()=>{
-try { await api('POST', { action:'update', id:t.id, title: title.value.trim(), done: cb.checked }); setHint('Guardado'); }
-catch(err){ setHint(err.message, true); }
-});
-
-
-delBtn.addEventListener('click', async ()=>{
-if(!confirm('¿Eliminar este pendiente?')) return;
-try { await api('POST', { action:'delete', id:t.id }); li.remove(); setHint('Eliminado'); }
-catch(err){ setHint(err.message, true); }
-});
-
-
-li.append(cb, title, saveBtn, delBtn);
-return li;
-}
-
-
-addBtn.addEventListener('click', async ()=>{
-const title = inputEl.value.trim();
-if(!title) return;
-try {
-const task = await api('POST', { action:'add', title });
-listEl.prepend(renderItem(task));
-inputEl.value='';
-setHint('Agregado');
-} catch(err){ setHint(err.message, true); }
-});
-
-
-inputEl.addEventListener('keydown', (e)=>{ if(e.key==='Enter') addBtn.click(); });
-
-
-load();
+// Initial render
+renderSuggestions();
     </script>
 </body>
 </html>
