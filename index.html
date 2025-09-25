@@ -295,17 +295,9 @@ suggestionForm.addEventListener('submit', async function (e) {
     const text = suggestionInput.value.trim();
     if (!text) return;
 
-    // Send suggestion to Google Apps Script web app
+    // Send suggestion to Google Apps Script web app using GET
     try {
-        const response = await fetch(API_URL, {
-            method: 'POST',
-            mode: 'no-cors', // Apps Script often requires this for public endpoints
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ suggestion: text })
-        });
-        // Optionally, show a confirmation message
+        await fetch(API_URL + '?suggestion=' + encodeURIComponent(text));
         alert('Suggestion sent!');
         suggestionInput.value = '';
     } catch (err) {
