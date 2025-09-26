@@ -200,127 +200,126 @@
         updateCountdown();
         setInterval(updateCountdown, 1000);
 
-suggestionForm.addEventListener('submit', async function (e) {
-// --- Suggestion Box Logic (Google Sheets Backend) ---
-const API_URL = 'https://script.google.com/macros/s/AKfycbw2yCXN-GC94HbyV4q_kwQrxS0RnXBcY4PCXViL46FJAEbXKxELPV0Z_LMPBmcFVNLVJQ/exec';
-const suggestionForm = document.getElementById('suggestion-form');
-const suggestionInput = document.getElementById('suggestion-input');
-const suggestionList = document.getElementById('suggestion-list');
+        // --- Suggestion Box Logic (Google Sheets Backend) ---
+        const API_URL = 'https://script.google.com/macros/s/AKfycbw2yCXN-GC94HbyV4q_kwQrxS0RnXBcY4PCXViL46FJAEbXKxELPV0Z_LMPBmcFVNLVJQ/exec';
+        const suggestionForm = document.getElementById('suggestion-form');
+        const suggestionInput = document.getElementById('suggestion-input');
+        const suggestionList = document.getElementById('suggestion-list');
 
-// Generate a unique voter id for this browser
-function getVoterId() {
-    let id = localStorage.getItem('voterId');
-    if (!id) {
-        id = 'voter-' + Math.random().toString(36).substr(2, 9);
-        localStorage.setItem('voterId', id);
-    }
-    return id;
-}
-const voterId = getVoterId();
-
-// Fetch and render suggestions from Google Sheets
-async function renderSuggestions() {
-    suggestionList.innerHTML = '<li>Loading...</li>';
-    try {
-        const res = await fetch(API_URL + '?action=list');
-        const data = await res.json();
-        if (!data.ok) throw new Error('Failed to fetch suggestions');
-        const suggestions = data.data;
-        suggestionList.innerHTML = '';
-        // Sort by votes descending
-        suggestions.sort((a, b) => (b.votes || 0) - (a.votes || 0));
-        suggestions.forEach(s => {
-            const li = document.createElement('li');
-            li.className = 'suggestion-item';
-
-            const text = document.createElement('span');
-            text.className = 'suggestion-text';
-            text.textContent = s.text;
-
-            const controls = document.createElement('div');
-            controls.className = 'vote-controls';
-
-            const upBtn = document.createElement('button');
-            upBtn.className = 'vote-btn';
-            upBtn.innerHTML = '⬆️';
-            upBtn.title = 'Upvote';
-
-            const downBtn = document.createElement('button');
-            downBtn.className = 'vote-btn';
-            downBtn.innerHTML = '⬇️';
-            downBtn.title = 'Downvote';
-
-            const voteCount = document.createElement('span');
-            voteCount.className = 'vote-count';
-            voteCount.textContent = s.votes || 0;
-
-            // Prevent multiple votes per suggestion per voter
-            const voted = (s.voters || []).includes(voterId);
-            upBtn.disabled = voted;
-            downBtn.disabled = voted;
-
-            upBtn.onclick = () => vote(s.id, 1);
-            downBtn.onclick = () => vote(s.id, -1);
-
-            controls.appendChild(upBtn);
-            controls.appendChild(voteCount);
-            controls.appendChild(downBtn);
-
-            li.appendChild(text);
-            li.appendChild(controls);
-
-            suggestionList.appendChild(li);
-        });
-    } catch (err) {
-        suggestionList.innerHTML = '<li style="color:red">Failed to load suggestions</li>';
-    }
-}
-
-// Vote for a suggestion
-async function vote(id, delta) {
-    // Prevent double voting in session
-    if (sessionStorage.getItem('voted_' + id)) {
-        alert('Ya votaste por esta sugerencia en esta sesión.');
-        return;
-    }
-    try {
-        const res = await fetch(API_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'vote', id, voter: voterId, delta })
-        });
-        const data = await res.json();
-        if (!data.ok) {
-            alert(data.error || 'No se pudo votar.');
-        } else {
-            sessionStorage.setItem('voted_' + id, '1');
-            renderSuggestions();
+        // Generate a unique voter id for this browser
+        function getVoterId() {
+            let id = localStorage.getItem('voterId');
+            if (!id) {
+                id = 'voter-' + Math.random().toString(36).substr(2, 9);
+                localStorage.setItem('voterId', id);
+            }
+            return id;
         }
-    } catch (err) {
-        alert('No se pudo votar.');
-    }
-}
+        const voterId = getVoterId();
 
-// Add suggestion
-suggestionForm.addEventListener('submit', async function (e) {
-    e.preventDefault();
-    const text = suggestionInput.value.trim();
-    if (!text) return;
-    try {
-        const res = await fetch(API_URL + '?suggestion=' + encodeURIComponent(text));
-        if (res.ok) {
-            suggestionInput.value = '';
-            renderSuggestions();
-        } else {
-            alert('No se pudo enviar la sugerencia.');
+        // Fetch and render suggestions from Google Sheets
+        async function renderSuggestions() {
+            suggestionList.innerHTML = '<li>Loading...</li>';
+            try {
+                const res = await fetch(API_URL + '?action=list');
+                const data = await res.json();
+                if (!data.ok) throw new Error('Failed to fetch suggestions');
+                const suggestions = data.data;
+                suggestionList.innerHTML = '';
+                // Sort by votes descending
+                suggestions.sort((a, b) => (b.votes || 0) - (a.votes || 0));
+                suggestions.forEach(s => {
+                    const li = document.createElement('li');
+                    li.className = 'suggestion-item';
+
+                    const text = document.createElement('span');
+                    text.className = 'suggestion-text';
+                    text.textContent = s.text;
+
+                    const controls = document.createElement('div');
+                    controls.className = 'vote-controls';
+
+                    const upBtn = document.createElement('button');
+                    upBtn.className = 'vote-btn';
+                    upBtn.innerHTML = '⬆️';
+                    upBtn.title = 'Upvote';
+
+                    const downBtn = document.createElement('button');
+                    downBtn.className = 'vote-btn';
+                    downBtn.innerHTML = '⬇️';
+                    downBtn.title = 'Downvote';
+
+                    const voteCount = document.createElement('span');
+                    voteCount.className = 'vote-count';
+                    voteCount.textContent = s.votes || 0;
+
+                    // Prevent multiple votes per suggestion per voter
+                    const voted = (s.voters || []).includes(voterId);
+                    upBtn.disabled = voted;
+                    downBtn.disabled = voted;
+
+                    upBtn.onclick = () => vote(s.id, 1);
+                    downBtn.onclick = () => vote(s.id, -1);
+
+                    controls.appendChild(upBtn);
+                    controls.appendChild(voteCount);
+                    controls.appendChild(downBtn);
+
+                    li.appendChild(text);
+                    li.appendChild(controls);
+
+                    suggestionList.appendChild(li);
+                });
+            } catch (err) {
+                suggestionList.innerHTML = '<li style="color:red">Failed to load suggestions</li>';
+            }
         }
-    } catch (err) {
-        alert('No se pudo enviar la sugerencia.');
-    }
-});
 
-// Initial render
-renderSuggestions();
+        // Vote for a suggestion
+        async function vote(id, delta) {
+            // Prevent double voting in session
+            if (sessionStorage.getItem('voted_' + id)) {
+                alert('Ya votaste por esta sugerencia en esta sesión.');
+                return;
+            }
+            try {
+                const res = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'vote', id, voter: voterId, delta })
+                });
+                const data = await res.json();
+                if (!data.ok) {
+                    alert(data.error || 'No se pudo votar.');
+                } else {
+                    sessionStorage.setItem('voted_' + id, '1');
+                    renderSuggestions();
+                }
+            } catch (err) {
+                alert('No se pudo votar.');
+            }
+        }
+
+        // Add suggestion
+        suggestionForm.addEventListener('submit', async function (e) {
+            e.preventDefault();
+            const text = suggestionInput.value.trim();
+            if (!text) return;
+            try {
+                const res = await fetch(API_URL + '?suggestion=' + encodeURIComponent(text));
+                if (res.ok) {
+                    suggestionInput.value = '';
+                    renderSuggestions();
+                } else {
+                    alert('No se pudo enviar la sugerencia.');
+                }
+            } catch (err) {
+                alert('No se pudo enviar la sugerencia.');
+            }
+        });
+
+        // Initial render
+        renderSuggestions();
     </script>
 </body>
 </html>
